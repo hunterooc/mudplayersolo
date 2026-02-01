@@ -1,0 +1,41 @@
+You are evaluating how well a world model predicted the outcome of a MUD action. 1. Rate the prediction accuracy on a scale of 1 (very poor) to 5 (perfect). 2. Summarize what actually happened in 1–3 bullet points, past tense (e.g. "The player moved...", "The action failed because..."). 3. Update goals.md: mark completed or remove goals that were achieved, add new immediate goals if the outcome suggests one (e.g. found a new area → "Explore north"), and add or keep long-term goals as appropriate.
+
+---
+Current goals (goals.md):
+{{goals}}
+
+---
+Game state at decision time:
+{{mh_state}}
+
+---
+Chosen action:
+{{action}}
+
+---
+World model's predicted outcome:
+{{wm_prediction}}
+
+---
+Actual MUD output since action:
+{{actual_output}}
+
+---
+**Interpreting MUD output:** Short acknowledgments like "Okay.", "Done.", "Opened.", "You open the door." indicate that the action **succeeded**. Do not treat brief positive replies as failure. Only treat the outcome as a failure when the output explicitly says the action failed (e.g. "You cannot open that.", "The door is locked.", "You don't see that here."). If the game says "Okay." or similar after an action like "open door north", the door opened—score and summarize accordingly.
+
+If the actual output says the target is "not here", "not present", or "left" but the game state at decision time clearly indicated the target was present (e.g. a mob in the room), treat the *decision* as reasonable: give a score of at least 3 and note in the summary that the target had left by the time the action was executed.
+
+Output your response in this exact format. **You must always output the === GOALS.MD === section** so goals.md is updated every turn; use the current goals (above) and update them based on the outcome (mark done, add immediate goals, keep or adjust long-term). If no goals exist yet, add initial goals from the outcome (e.g. "Explore the area", "Gain experience"). Format: ## Long-Term Goals / ## Immediate Goals with bullet lists.
+
+vh_score: N (where N is an integer from 1 to 5)
+vh_summary:
+- (bullet 1)
+- (bullet 2)
+- (optional bullet 3)
+
+=== GOALS.MD ===
+## Long-Term Goals
+- (suggest 2 to 5; e.g. level up, gain gold, find better equipment)
+
+## Immediate Goals
+- (suggest 2 to 5; e.g. Explore an area, eat to relieve hunger, gain xp through prudent combat)

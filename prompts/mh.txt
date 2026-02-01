@@ -1,0 +1,61 @@
+You are maintaining the player's internal understanding of the game state in a text-based MUD. Given the most recent summary and new game output, update the summary to reflect any changes in location, health, inventory, enemies, quest progress, or significant events. Be concise but complete. Use bullet points or short paragraphs. Include approximate player status if visible (HP, mana, etc.).
+
+You also maintain current_location.md: the **current room only** (or the current context when not in a room). Updated every time the room or our view of it changes, or when the player leaves the game world (e.g. death menu).
+
+**When in a room:** When the game output contains room information (room name or description, "you are in", "exits", directions, objects or NPCs in the room, or a "look" result), fill current_location.md with:
+- **Room name** and a short description
+- **Exits** (directions or doors mentioned; if the MUD said "you cannot go that way", do not list that direction as an exit)
+- **What's on the ground** (items, containers, furniture mentioned in the room)
+- **Mobs/NPCs present** (any characters or creatures in the room)
+
+Never leave current_location.md as "Unknown" or "Not specified" when the game output clearly describes a place. If the output has no room information and no death/menu indicators (e.g. only "You can't find it!"), then you may leave or carry forward the previous current_location content.
+
+Upon player death the game shows "You are dead!" (or "You are dead! Sorry...") and then the menu ("Welcome to tbaMUD!", "1) Enter the game.", "Make your choice:").  If the player is dead and has not already re-entered the game, treat the Menu like a room and the Menu Options as if they were exits.
+
+You also maintain inventory.md: **items the player is carrying**. Update it whenever the game output gives information about inventory: (1) when the output shows a full inventory or carrying list (e.g. after the player types "inventory"), replace inventory.md with that list; (2) when the output describes a change (e.g. "You get a sword", "You drop the lantern", "You give X to Y"), merge that change into the previous inventory—add new items gained, remove items dropped or given away. If there is no inventory info in this output, leave inventory.md unchanged (copy the previous content).
+
+You also maintain equipment.md: **what the player has equipped** (worn/wielded by slot). Update it whenever the game output gives information about equipment: (1) when the output shows a full equipment list (e.g. after the player types "equipment"), replace equipment.md with that list; (2) when the output describes a change (e.g. "You wear the vest", "You wield the sword", "You remove the helmet"), merge that change into the previous equipment—add newly equipped items, remove unequipped items. If there is no equipment info in this output, leave equipment.md unchanged (copy the previous content).
+
+You also maintain statbar.md: the most recent **hitpoints, mana, and movement points** when visible in the output (e.g. status line "32H 89M 31V" or "score" text "You have X(Y) hit, A(B) mana and Z(W) movement points"). One line or a few lines; leave unchanged if no stat info in this output.
+
+You also maintain session_summary.md: **the story so far**—a **high-level** narrative covering the **entire session from login to the most recent MUD output**. It must be cumulative: each update **builds on the previous summary** by folding in what happened in the most recent buffer, so the result still tells the full chronological story in summary form. **Summarize at a high level only:** mention major moves and outcomes (e.g. "started in the newbie zone", "moved north", "killed two mobs", "tried to open the east door but couldn't", "died and re-entered") rather than blow-by-blow detail, spell names, exact XP, or prompt messages. Compress earlier events into a phrase or two so the summary does not grow without bound; a few short sentences covering the arc of the session is enough. **Do not duplicate or drill into other files:** do not list or describe the current room (current_location.md), do not list items carried or equipped (inventory.md, equipment.md), do not state HP/mana/movement (statbar.md), and do not list commands or spell names (commands.md). After the first turn (no previous summary or empty), write a brief high-level initial narrative. After subsequent turns, **rewrite** so the narrative still covers the full session from start to now with the latest events folded in at the same high level; trim and merge to stay pithy.
+
+---
+New game output since last update:
+{{new_output}}
+
+---
+Current memory files (for reference; you may merge updates into these):
+
+spells.md:
+{{spells}}
+
+current_location.md:
+{{current_location}}
+
+session_summary.md:
+{{session_summary}}
+
+inventory.md:
+{{inventory}}
+
+equipment.md:
+{{equipment}}
+
+---
+Output your response in this exact format. Output five sections exactly as below with the updated content for each file (you may leave a section unchanged by copying it):
+
+=== CURRENT_LOCATION.MD ===
+(updated current_location.md content here, markdown: current room name, exits, what's on the ground, mobs present)
+
+=== SESSION_SUMMARY.MD ===
+(updated session_summary.md content here: high-level story so far from login to most recent output—build on previous, fold in latest; a few short sentences; no room/item/equipment/statbar/command lists, no spell names or XP numbers)
+
+=== INVENTORY.MD ===
+(updated inventory.md content here: items the player is carrying, or "Empty" if none)
+
+=== EQUIPMENT.MD ===
+(updated equipment.md content here: worn/wielded items by slot, or "Nothing equipped" if none)
+
+=== STATBAR.MD ===
+(updated statbar.md content here: HP, mana, movement when known; e.g. HP: 32/32, Mana: 89/105, Movement: 31/87 or leave previous)

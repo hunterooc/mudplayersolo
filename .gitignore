@@ -1,0 +1,38 @@
+# Environment and secrets (never commit)
+.env
+.env.local
+.env.*.local
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs and traces (orchestrator clears/rewrites at start of each run)
+data/logs/*.log
+data/logs/*.jsonl
+data/logs/trace_analysis.md
+
+# Memory files (created/rewritten by main.py and MH every run)
+data/*.md
+
+# Checkpoints (large; train from scratch or download separately)
+data/checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
