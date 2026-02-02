@@ -33,31 +33,14 @@ def _default_config():
             "data_dir": "data",
             "memory_dir": "data",
             "logs_dir": "data/logs",
-            "traces_file": "data/logs/traces.jsonl",
-            "checkpoints_dir": "data/checkpoints/wm",
+            "gameplay_log": "data/logs/gameplay.jsonl",
             "prompts_dir": "prompts",
         },
         "openai": {"model": os.getenv("OPENAI_MODEL", "gpt-5-mini")},
-        "wm": {
-            "model_name": "mistralai/Mistral-7B-v0.1",
-            "use_4bit": False,
-            "max_new_tokens": 256,
-            "temperature": 0.3,
-        },
         "orchestrator": {
             "kickoff_commands": ["look", "score", "inventory", "equipment"],
             "max_steps": None,
-        },
-        "training": {
-            "trace_glob": "data/logs/traces*.jsonl",
-            "vh_score_min": 1,
-            "weight_by_vh_score": True,
-            "mode": "outcome_summary",
-            "lora_r": 8,
-            "lora_alpha": 16,
-            "per_device_train_batch_size": 1,
-            "num_epochs": 3,
-            "learning_rate": 2.0e-5,
+            "game_buffer_max_lines": 100,
         },
     }
 

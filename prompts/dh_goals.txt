@@ -1,0 +1,31 @@
+Given the game state at decision time, the action taken, and the actual MUD output, update goals.md: mark completed or remove achieved goals, add immediate goals suggested by the outcome, keep or adjust long-term goals.
+
+**Interpreting MUD output:** Short acknowledgments like "Okay.", "Done.", "Opened.", "You open the door." indicate that the action **succeeded**. Do not treat brief positive replies as failure. Only treat the outcome as a failure when the output explicitly says the action failed (e.g. "You cannot open that.", "The door is locked.", "You don't see that here.").
+
+You must always output the === GOALS.MD === section so goals.md is updated every turn; use the current goals (below) and update them based on the outcome (mark done, add immediate goals, keep or adjust long-term). If no goals exist yet, add initial goals from the outcome (e.g. "Explore the area", "Gain experience"). Format: ## Long-Term Goals / ## Immediate Goals with bullet lists.
+
+---
+Current goals (goals.md):
+{{goals}}
+
+---
+Game state at decision time:
+{{mh_state}}
+
+---
+Chosen action:
+{{action}}
+
+---
+Actual MUD output since action:
+{{actual_output}}
+
+---
+Output your response in this exact format. **You must always output the === GOALS.MD === section.**
+
+=== GOALS.MD ===
+## Long-Term Goals
+- (suggest 2 to 5; e.g. level up, gain gold, find better equipment)
+
+## Immediate Goals
+- (suggest 2 to 5; e.g. Explore an area, eat to relieve hunger, gain xp through prudent combat)

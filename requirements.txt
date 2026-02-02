@@ -2,16 +2,3 @@
 openai>=1.0.0
 python-dotenv>=1.0.0
 pyyaml>=6.0
-
-# WM (Mistral-7B) and training
-torch>=2.0.0
-transformers>=4.35.0
-accelerate>=0.24.0
-bitsandbytes>=0.41.0; sys_platform != "win32"
-
-# PEFT for LoRA fine-tuning
-peft>=0.6.0
-datasets>=2.14.0
-
-# Semantic loss for outcome_summary (Option A)
-sentence-transformers>=2.2.0

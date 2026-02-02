@@ -1,4 +1,4 @@
-# MUD World Model — runtime and training config
+# MUD player — runtime config (MH + DH only)
 
 # MUD connection
 mud:
@@ -11,21 +11,13 @@ paths:
   data_dir: data
   memory_dir: data          # commands.md, spells.md, current_location.md, mobs.md, session_summary.md, goals.md, inventory.md, equipment.md, statbar.md
   logs_dir: data/logs
-  traces_file: data/logs/traces.jsonl
-  checkpoints_dir: data/checkpoints/wm
+  gameplay_log: data/logs/gameplay.jsonl
   prompts_dir: prompts
 
 # API agents (OpenAI)
 openai:
   model: gpt-5-mini
   temperature: 1   # gpt-5-mini only supports 1; omit or set lower for models that allow it (e.g. gpt-4o-mini)
-
-# World model (local Mistral-7B)
-wm:
-  model_name: mistralai/Mistral-7B-v0.1
-  use_4bit: false           # set true if low VRAM
-  max_new_tokens: 256
-  temperature: 0.3
 
 # Orchestrator
 orchestrator:
@@ -36,25 +28,4 @@ orchestrator:
     - equipment
     - practice   # when not at guildmaster, shows known spells/skills
   max_steps: null           # null = run until stopped
-  game_buffer_max_lines: 100  # PH/DH see this many lines of recent game output (at least everything since last send)
-
-# Training
-training:
-  trace_glob: data/logs/traces*.jsonl
-  vh_score_min: 1           # keep all traces; vh_score rates prediction quality, not outcome (see train.build_dataset)
-  weight_by_vh_score: true
-  mode: outcome_summary     # "next_line" or "outcome_summary"
-  lora_r: 8
-  lora_alpha: 16
-  max_length: 2048                # max sequence length (context + target). Fit composed context + 25-line buffer + action + target; Mistral supports 8192.
-  per_device_train_batch_size: 2   # 512-token seqs: 24GB VRAM ~2–4; 16GB ~1–2. Use --batch-size 1 if OOM.
-  gradient_accumulation_steps: 4   # effective batch = per_device * this (default 8)
-  num_epochs: 25
-  learning_rate: 2.0e-5
-  early_stopping_patience: 2   # stop after this many epochs with no improvement on eval loss
-  eval_fraction: 0.1           # fraction of data used for validation (0 = no early stopping)
-  # Semantic loss (Option A): match WM representation to VH summary in embedding space (trains meaning, not wording)
-  use_semantic_loss: true
-  semantic_encoder: sentence-transformers/all-MiniLM-L6-v2
-  semantic_loss_weight: 0.5   # L = L_ce + this * L_sem (hybrid). Set semantic_only: true to use only L_sem.
-  semantic_only: false
+  game_buffer_max_lines: 100  # DH sees this many lines of recent game output

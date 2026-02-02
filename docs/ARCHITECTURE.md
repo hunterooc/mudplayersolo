@@ -1,163 +1,77 @@
-# MUD Agent Architecture and Workflow Summary
+# MUD Player Architecture (MH + DH)
 
 ## Agents and Their Roles
 
 ### 1. MH — Memory Head
 
 - **Model**: GPT-5-mini (API)
-- **Purpose**: Maintains and updates the agent's internal game state and current room snapshot.
+- **Purpose**: Maintains and updates the agent's internal game state and current room snapshot (situational awareness).
 
 **Input:**
 
 - New MUD output since last cycle
-- Current versions of memory files (commands, current_location, mobs, session_summary)
+- Current versions of memory files (commands, current_location, mobs, session_summary, inventory, equipment, statbar)
 
 **Prompt:**
 
-MH updates memory files only (no monolithic state summary). **current_location.md** is the current room only (updated every time the room or our view of it changes): room name and short description, exits (directions or doors; do not list a direction if the MUD said "you cannot go that way"), what's on the ground, mobs/NPCs present. Also commands.md (discovered commands and effects), mobs.md (encountered enemies/NPCs), session_summary.md (the story so far, in narrative paragraph form to avoid overlap with list-style files), and **statbar.md** (HP, mana, movement points when visible in output).
+MH updates memory files only. **current_location.md** is the current room only: room name and short description, exits (directions or doors; do not list a direction if the MUD said "you cannot go that way"), what's on the ground, mobs/NPCs present. Also commands.md (discovered commands and effects), mobs.md (encountered enemies/NPCs), session_summary.md (the story so far, in narrative form), inventory.md, equipment.md, and **statbar.md** (HP, mana, movement points when visible).
 
 **Output:**
 
-- Updated memory files (commands, current_location, mobs, session_summary, inventory, equipment, statbar). There is no separate state summary file; agents receive granular .md files (and WM/VH receive a composed context built from current_location + session_summary + statbar for their single "game state" field).
+- Updated memory files (commands, current_location, mobs, session_summary, inventory, equipment, statbar). DH receives this full situational context each turn.
 
 ---
 
-### 2. PH — Policy Head
+### 2. DH — Decision Head
 
 - **Model**: GPT-5-mini (API)
-- **Purpose**: Proposes up to 7 next plausible player actions aligned with survive, explore, and gain experience; includes a combat option when a mob is present.
+- **Purpose**: (1) Chooses the next MUD command from MH state + goals. (2) After each action, updates **goals.md** from the outcome.
 
-**Input:**
+**Two modes:**
 
-- Recent game buffer (context)
-- Current versions of memory files: commands, current_location, mobs, session_summary, goals, inventory, equipment, statbar
+1. **Action mode:** Given full MH state (current_location, session_summary, statbar, goals, inventory, equipment, commands, mobs, game_buffer, play_summary), output the single best next command. No candidate list—DH decides freely from state and goals.
+2. **Goals mode:** Given game state at decision time, the action taken, and the actual MUD output, output updated goals.md content (mark completed, add immediate goals from outcome, keep or adjust long-term goals). Format: ## Long-Term Goals / ## Immediate Goals with bullet lists.
 
-**Prompt:**
-
-PH is given explicit objectives: **Survive** (avoid death; when hurt or in danger, prefer healing, fleeing, or defensive actions); **Explore** (discover new areas and exits; try unseen directions or rooms when safe); **Gain experience** (engage in combat or quest-like actions when health/resources allow; gather items and information that might help later). PH also receives **goals.md** (long-term and immediate goals maintained by VH). Prefer actions that make progress toward current goals (especially immediate goals); if no goals are set, favor explore/survive/gain experience. Based on game state, recent events, and memory files, PH suggests up to 7 actions that mix these goals where possible. Include "wait and observe" if viable. All actions are short MUD-style commands. Prefer actions that use or extend known commands/locations from memory when that serves survival, exploration, or gaining experience.
+**Action criteria (in order of priority):** Safety (avoid death/heavy damage), Progress (XP, loot, new areas, goals), Learn or explore (new information when safe). Priority rule: survival first, then progress, then exploitation of known good options. Prefer actions that align with current goals when safety and feasibility allow.
 
 **Output:**
 
-- List of up to 7 possible action strings (including combat when mob present)
-
----
-
-### 3. WM — World Model
-
-- **Model**: Mistral-7B (local, fine-tunable)
-- **Purpose**: Predicts outcome of each candidate action.
-- **Mode**: Next-token completion (causal LM generate). For a chat-tuned model (e.g. Mistral-7B-Instruct) you would use the model's chat template instead.
-
-**Input (per action):**
-
-- MH state
-- Action string
-
-**Prompt:**
-
-Predict what the MUD will display next. Output only the exact text the MUD would show (one short paragraph). Do not repeat the game state or use labels like "Expected output:". Then on the next line: Confidence: high (or medium or low).
-
-**Output (per action):**
-
-- `predicted_text`
-- `confidence`
-
----
-
-### 4. DH — Decision Head
-
-- **Model**: GPT-5-mini (API)
-- **Purpose**: Chooses best action from WM predictions using the full picture and defined criteria.
-
-**Input:**
-
-- Recent game buffer (full picture at decision time)
-- List of actions + WM predictions + confidences
-- Current versions of memory files (commands, current_location, mobs, session_summary, goals)
-
-**Prompt:**
-
-DH receives the full picture: current game state, recent MUD output, each option's predicted outcome, and **goals.md** (long-term and immediate goals). When choosing, prefer options that align with current goals when safety and feasibility allow. Use state and buffer to reject options that are impossible (e.g. eating when inventory is empty; using an object not in the current room). Criteria (in order of priority): **Safety** — avoid actions the prediction suggests could lead to death or heavy damage unless no safer option exists; if state suggests low HP or danger, strongly prefer healing, fleeing, or defensive actions. **Progress** — gaining experience or loot, entering new areas, learning new commands or mob behavior, or advancing toward a goal. **Learn or explore** — prefer options that reveal new information when confidence is at least medium and the outcome is not clearly lethal. **Priority rule:** When in doubt: survival first, then progress, then exploitation of already-known good options.
-
-**Output:**
-
-- Chosen action (or ranked list)
-
----
-
-### 5. VH — Value Head
-
-- **Model**: GPT-5-mini (API)
-- **Purpose**: Grades WM's prediction, summarizes actual outcome, and updates **goals.md** (long-term and immediate goals).
-
-**Input:**
-
-- MH state at decision time
-- Chosen action
-- WM's predicted outcome
-- Actual MUD output since action
-- Current goals (goals.md)
-
-**Prompt:**
-
-VH evaluates how well the world model predicted the outcome, summarizes what actually happened in 1–3 bullet points, and outputs an updated **goals.md**: mark completed or remove goals that were achieved, add new immediate goals if the outcome suggests one (e.g. found a new area → "Explore north"), and add or keep long-term goals as appropriate. Format: ## Long-Term Goals / ## Immediate Goals with bullet lists. If no goals exist yet, VH may add initial goals based on the outcome.
-
-**Output:**
-
-- `vh_score`: integer 1–5
-- `vh_summary`: brief text summary of what occurred
-- `goals_update`: updated goals.md content (written to disk after VH; PH and DH see it on the next step)
+- Action mode: one command string (e.g. "north", "get sword", "cast fireball goblin").
+- Goals mode: the GOALS.MD section text (written to goals.md after each step).
 
 ---
 
 ## Runtime Flow
 
-1. **Kickoff**: Triggered via start command or completion of previous VH step. Sends commands like `look`, `score`, `inventory` to populate initial state.
-2. **MH Update**: Triggered by 10s silence or kickoff. Updates memory files using new MUD output (commands, current_location, mobs, session_summary, inventory, equipment, statbar).
-3. **PH Action Proposal**: Generates up to 7 plausible actions using memory files (including combat when mob present).
-4. **WM Prediction**: Predicts outcome and confidence for each action.
-5. **DH Selection**: Chooses best action from WM predictions and memory-informed context.
-6. **Execute Action**: Sends command to MUD.
-7. **VH Evaluation**: After next 10s of silence, compares WM prediction to actual result. Outputs score, consequence summary, and updated **goals.md**. Goals are written to disk immediately after VH (so step N+1 PH/DH see them).
-8. **Logging**: Store full trace: MH state, action, WM prediction, VH score, VH summary, goals (at decision time), MUD output.
-9. **Repeat**: Return to MH on next 10s silence.
+1. **Kickoff**: Sends commands like `look`, `score`, `inventory`, `equipment` to populate initial state.
+2. **MH Update**: New MUD output → run_mh → updated memory files (commands, current_location, mobs, session_summary, inventory, equipment, statbar).
+3. **DH Action**: Build context from memory + game_buffer + play_summary. Call run_dh_action → chosen command. (Manual override: user can type a command in the terminal to inject it instead.)
+4. **Execute**: Send chosen command to MUD; wait for silence.
+5. **DH Goals**: Call run_dh_goals(mh_state, action, actual_output, goals) → goals_update. Write goals_update to goals.md.
+6. **Debug log**: Append one JSON object per step to `data/logs/gameplay.jsonl`: step, mh_context (what MH sent to DH), action, mud_output, goals_after. Use this to debug "what did DH see when it chose this action?"
+7. **Repeat**: Next cycle starts with MH on the latest buffer.
 
 ---
 
-## WM Training Tuple Format
+## Debug Log Format
 
-Each trace written after a step includes:
+**Path:** `data/logs/gameplay.jsonl` (config: `paths.gameplay_log`).
 
-**Input:**
+**Per-line JSON fields:**
 
-```json
-{
-  "mh_state": "...",
-  "action": "cast fireball goblin"
-}
-```
+- `step`: int
+- `mh_context`: object with keys current_location, session_summary, statbar, goals, inventory, equipment, commands, mobs, game_buffer (last ~4k chars)
+- `action`: string (command sent)
+- `mud_output`: string (MUD response after action)
+- `goals_after`: string (goals.md content after this step)
 
-(The "mh_state" key in traces holds the composed game context at decision time: current_location + session_summary + statbar, so train.py continues to build the "Game state:" block from it.)
-
-**Targets (both logged for training):**
-
-- **next_line**: First substantive line of MUD output after the action (status bar / prompt excluded). Extracted at trace time so WM can be trained to predict the immediate next line.
-- **outcome_summary**: VH's summary of what actually happened (same as vh_summary). VH produces this when scoring; it summarizes the consequence of the action in 1–3 bullet points so WM can be trained to predict outcome, not just raw tokens.
-
-**VH Score**: 1–5, used to filter or weight training samples.
-
-**Training Modes** (train.py):
-
-- **next_line**: LM loss on next_line (first non-status MUD line). Keeps WM grounded in surface text.
-- **outcome_summary**: Instruction tuning on outcome_summary (VH summary). Teaches WM causal/consequence understanding.
-- Filter or weigh loss by `vh_score`.
+This keeps debugging focused on situational awareness and outcomes without any world-model or training fields.
 
 ---
 
 ## Notes
 
-- WM is the only trainable component initially.
-- MH, PH, DH, VH are all prompt-driven GPT-5-mini calls.
-- Action loop triggered on prompt or timer (10s MUD silence).
-- VH generates both a score and a consequence summary to serve as supervision signal for WM.
-- MH maintains persistent memory files (commands, current_location, mobs, session_summary, inventory, equipment, **statbar**) which PH consumes each turn (DH receives all except statbar). There is no monolithic state summary file; WM and VH receive a single "game state" string built by composing current_location + session_summary + statbar at decision time (stored in trace["mh_state"] for training). **statbar.md** holds HP, mana, and movement points; PH and VH (and WM via composed context) receive it; DH does not. **goals.md** is maintained by VH after each action evaluation (long-term and immediate goals); it is cleared at startup so each run starts with no goals. PH and DH receive goals so they can propose and select goal-aligned actions; if VH omits the GOALS section or returns empty, previous goals are kept (not overwritten).
+- MH and DH are both prompt-driven API calls (OpenAI).
+- Goals are maintained by DH (goals update call) and written to goals.md after each step; DH action sees them on the next turn.
+- Memory files are cleared at startup (current_location, session_summary, goals, inventory, equipment, statbar) so each run starts fresh.
+- Manual override: type a command in the orchestrator terminal and press Enter to send it as the next action instead of DH's choice.

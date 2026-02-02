@@ -1,8 +1,8 @@
-"""Decision Head: choose best action from WM predictions."""
+"""Decision Head: choose next action from MH state + goals; update goals after outcome."""
 import os
 import re
 from pathlib import Path
-from typing import List, Tuple
+from typing import Optional
 
 from openai import OpenAI
 
@@ -27,23 +27,22 @@ def _fill(template: str, **kwargs: str) -> str:
     return template
 
 
-def run_dh(
-    options: List[Tuple[str, str, str]],
+def run_dh_action(
     game_buffer: str = "",
     commands: str = "",
     spells: str = "",
     current_location: str = "",
     mobs: str = "",
-    play_summary: str = "",
     session_summary: str = "",
     goals: str = "",
     inventory: str = "",
     equipment: str = "",
-    client: OpenAI | None = None,
+    statbar: str = "",
+    play_summary: str = "",
+    client: Optional[OpenAI] = None,
 ) -> str:
     """
-    Run DH: options is list of (action, predicted_text, confidence).
-    Receives full picture: game_buffer, play_summary, and memory files (including inventory, equipment).
+    Run DH action mode: given full MH state + goals, output the next MUD command.
     Returns chosen action string.
     """
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -52,23 +51,20 @@ def run_dh(
     client = client or OpenAI(api_key=api_key)
     cfg = load_config()
     model = cfg.get("openai", {}).get("model", "gpt-5-mini")
-    options_text = "\n\n".join(
-        f"Action: {a}\nPredicted: {p}\nConfidence: {c}" for a, p, c in options
-    )
     template = _load_prompt("dh.txt")
     prompt = _fill(
         template,
-        options_text=options_text,
         game_buffer=game_buffer,
         commands=commands,
         spells=spells,
         current_location=current_location,
         mobs=mobs,
-        play_summary=play_summary,
         session_summary=session_summary,
         goals=goals,
         inventory=inventory,
         equipment=equipment,
+        statbar=statbar,
+        play_summary=play_summary,
     )
     temperature = cfg.get("openai", {}).get("temperature")
     if temperature is None:
@@ -79,21 +75,58 @@ def run_dh(
         temperature=temperature,
     )
     text = (resp.choices[0].message.content or "").strip()
-    # First non-empty line that looks like a command (short, no punctuation at end)
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     for ln in lines:
         ln = re.sub(r"^[\d\.\)\-\*]+\s*", "", ln).strip()
-        # Reject markdown/code artifacts: backticks, code blocks, empty
         ln = re.sub(r"^`+|`+$", "", ln).strip()
-        # If line is "Action: look", take the part after the last colon
         if ":" in ln:
             ln = ln.split(":")[-1].strip()
         if not ln or ln in ("```", "`") or len(ln) > 200 or ln.endswith("."):
             continue
-        # Prefer an action that was one of PH's options
-        if options and any(a.strip().lower() == ln.lower() for a, _, _ in options):
-            return ln
-        # Otherwise accept any reasonable-looking command (letters, spaces, digits)
         if re.match(r"^[\w\s\-']+$", ln, re.IGNORECASE):
             return ln
-    return options[0][0] if options else "look"
+    return "look"
+
+
+def run_dh_goals(
+    mh_state: str,
+    action: str,
+    actual_output: str,
+    goals: str = "",
+    client: Optional[OpenAI] = None,
+) -> str:
+    """
+    Run DH goals mode: given state at decision time, action taken, and actual MUD output,
+    output updated goals.md content. Returns the GOALS.MD section text (to write to goals.md).
+    """
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY not set")
+    client = client or OpenAI(api_key=api_key)
+    cfg = load_config()
+    model = cfg.get("openai", {}).get("model", "gpt-5-mini")
+    template = _load_prompt("dh_goals.txt")
+    prompt = _fill(
+        template,
+        mh_state=mh_state,
+        action=action,
+        actual_output=actual_output,
+        goals=goals,
+    )
+    temperature = cfg.get("openai", {}).get("temperature")
+    if temperature is None:
+        temperature = 0.2
+    resp = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=temperature,
+    )
+    text = (resp.choices[0].message.content or "").strip()
+    goals_section = re.search(
+        r"=== GOALS(?:\.MD)? ===\s*(.+?)(?=\n===|\Z)",
+        text,
+        re.S | re.I,
+    )
+    if goals_section:
+        return goals_section.group(1).strip()
+    return goals  # keep previous if section missing
