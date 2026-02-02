@@ -36,7 +36,7 @@ def _default_config():
             "gameplay_log": "data/logs/gameplay.jsonl",
             "prompts_dir": "prompts",
         },
-        "openai": {"model": os.getenv("OPENAI_MODEL", "gpt-5-mini")},
+        "openai": {"model": os.getenv("OPENAI_MODEL", "gpt-4o-mini")},
         "orchestrator": {
             "kickoff_commands": ["look", "score", "inventory", "equipment"],
             "max_steps": None,

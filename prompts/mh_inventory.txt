@@ -1,0 +1,12 @@
+You maintain inventory.md: **items the player is carrying**. Update it whenever the game output gives information about inventory: (1) when the output shows a full inventory or carrying list (e.g. after the player types "inventory"), replace inventory.md with that list; (2) when the output describes a change (e.g. "You get a sword", "You drop the lantern", "You give X to Y"), merge that change into the previous inventory—add new items gained, remove items dropped or given away. If there is no inventory info in this output, leave inventory.md unchanged (copy the previous content).
+
+---
+New game output since last update:
+{{new_output}}
+
+---
+Previous inventory.md content:
+{{inventory}}
+
+---
+Output only the updated content for inventory.md. No section headers, no labels. If there is no inventory information in the output, output the previous content unchanged. Use "Empty" if the player is carrying nothing.

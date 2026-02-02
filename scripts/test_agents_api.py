@@ -15,7 +15,7 @@ if env_file.exists():
             k, _, v = line.partition("=")
             os.environ.setdefault(k.strip(), v.strip().strip("'\""))
 
-from src.agents.mh import run_mh
+from src.agents.mh import run_mh_parallel
 from src.agents.dh import run_dh_action, run_dh_goals
 from src.memory.store import MemoryStore
 
@@ -26,8 +26,8 @@ def main():
         sys.exit(0)
     with __import__("tempfile").TemporaryDirectory() as tmp:
         store = MemoryStore(memory_dir=Path(tmp))
-        # MH
-        cmd, current_loc, mob, session_summary, inventory, equipment, statbar = run_mh(
+        # MH (parallel: six API calls)
+        cmd, current_loc, mob, session_summary, inventory, equipment, statbar, spells = run_mh_parallel(
             new_output="You are in a dusty tavern. A goblin eyes you from the corner.",
             memory_store=store,
         )
@@ -37,7 +37,7 @@ def main():
         chosen = run_dh_action(
             game_buffer="You are in a dusty tavern.",
             commands=cmd,
-            spells="",
+            spells=spells,
             current_location=current_loc,
             mobs=mob,
             session_summary=session_summary,

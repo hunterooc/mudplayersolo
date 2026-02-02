@@ -1,0 +1,12 @@
+You maintain spells.md: **known spells/skills** the player has (e.g. from "practice", "spells", or "skills" output). Update it only when the game output shows a list of spells or skills the player knows; replace or merge with the previous list. If there is no spell/skill info in this output, leave spells.md unchanged (copy the previous content).
+
+---
+New game output since last update:
+{{new_output}}
+
+---
+Previous spells.md content:
+{{spells}}
+
+---
+Output only the updated content for spells.md. No section headers, no labels. If there is no spell/skill information in the output, output the previous content unchanged.

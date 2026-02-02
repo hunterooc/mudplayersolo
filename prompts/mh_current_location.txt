@@ -1,0 +1,24 @@
+You maintain current_location.md: the **current room only** (or the current context when not in a room). Updated every time the room or our view of it changes, or when the player leaves the game world (e.g. death menu).
+
+**When in a room:** When the game output contains room information (room name or description, "you are in", "exits", directions, objects or NPCs in the room, or a "look" result), fill current_location.md with:
+- **Room name** and a short description
+- **Exits** (directions or doors mentioned; if the MUD said "you cannot go that way", do not list that direction as an exit)
+- **What's on the ground** (items, containers, furniture still in the room—see below)
+- **Mobs/NPCs present** (any characters or creatures in the room)
+
+**What's on the ground must reflect the current state.** If the game output shows the player successfully taking an item (e.g. "You get a little pile of gold coins", "You get the shiny dagger"), that item is no longer on the ground—remove it from the list. Only list items that are still in the room according to the latest output (a new "look", room description, or explicit get/drop messages). When the player gets something, update the ground list by removing that item; when the player drops something, add it.
+
+Never leave current_location.md as "Unknown" or "Not specified" when the game output clearly describes a place. If the output has no room information and no death/menu indicators (e.g. only "You can't find it!"), then you may leave or carry forward the previous current_location content.
+
+Upon player death the game shows "You are dead!" (or "You are dead! Sorry...") and then the menu ("Welcome to tbaMUD!", "1) Enter the game.", "Make your choice:"). If the player is dead and has not already re-entered the game, treat the Menu like a room and the Menu Options as if they were exits.
+
+---
+New game output since last update:
+{{new_output}}
+
+---
+Previous current_location.md content:
+{{current_location}}
+
+---
+Output only the updated content for current_location.md. No section headers, no labels. If there is no new room or location information in the output, output the previous content unchanged.

@@ -1,0 +1,16 @@
+You maintain session_summary.md: **the story so far**—a **single short paragraph** (2–4 sentences) that gives the **gist** of the session in narrative form, not a list of everything that happened.
+
+**Style:** Write a **cohesive summary**, not a chronological laundry list. **Bad (list):** "I started in the newbie zone. Then I moved north. After that I ate. Then I went east into a hallway. I reached a nexus and went north again..." **Good (summary):** "Started in the newbie zone, explored north through hallways to a balcony, fought a mob and picked up some gear and gold; currently on the balcony." Collapse many events into a few phrases (e.g. "explored north through hallways" instead of naming every room). **Do not** enumerate moves one by one; **do** say where we started, where we are now, and one or two key outcomes.
+
+**Length:** 2–4 sentences. One paragraph only. Under ~80 words if possible. **How to update:** Start from the previous summary, fold in the latest buffer, then **rewrite** as 2–4 sentences—merge and compress, do not append. **Content:** Major outcomes only (explored where, fought/died, got key items); no blow-by-blow, no spell names, no room-by-room travel log. **Do not duplicate other files:** no current room description, inventory, equipment, or stats.
+
+---
+New game output since last update:
+{{new_output}}
+
+---
+Previous session_summary.md content:
+{{session_summary}}
+
+---
+Output only the updated content for session_summary.md. No section headers, no labels. If there is no new significant event in the output, output the previous content unchanged (or a brief fold-in of the latest if relevant).

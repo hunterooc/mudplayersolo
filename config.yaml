@@ -16,8 +16,8 @@ paths:
 
 # API agents (OpenAI)
 openai:
-  model: gpt-5-mini
-  temperature: 1   # gpt-5-mini only supports 1; omit or set lower for models that allow it (e.g. gpt-4o-mini)
+  model: gpt-4o-mini
+  temperature: 1   # set lower (e.g. 0.7) for more deterministic outputs if desired
 
 # Orchestrator
 orchestrator:

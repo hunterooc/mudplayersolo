@@ -2,23 +2,16 @@
 
 ## Agents and Their Roles
 
-### 1. MH — Memory Head
+### 1. MH — Memory Head (parallel)
 
 - **Model**: GPT-5-mini (API)
-- **Purpose**: Maintains and updates the agent's internal game state and current room snapshot (situational awareness).
+- **Purpose**: Maintains and updates the agent's internal game state (situational awareness). Runs **six API calls in parallel**, one per file, so wall-clock time is roughly the slowest call instead of the sum of all six.
 
-**Input:**
+**Per-file prompts** (under `prompts/`): mh_current_location.txt, mh_session_summary.txt, mh_inventory.txt, mh_equipment.txt, mh_statbar.txt, mh_spells.txt. Each gets new MUD output and the previous value for that file only; each returns the updated content for that file (no section headers to parse).
 
-- New MUD output since last cycle
-- Current versions of memory files (commands, current_location, mobs, session_summary, inventory, equipment, statbar)
+**Input (per call):** New MUD output since last cycle + previous content for that file (current_location, session_summary, inventory, equipment, statbar, or spells).
 
-**Prompt:**
-
-MH updates memory files only. **current_location.md** is the current room only: room name and short description, exits (directions or doors; do not list a direction if the MUD said "you cannot go that way"), what's on the ground, mobs/NPCs present. Also commands.md (discovered commands and effects), mobs.md (encountered enemies/NPCs), session_summary.md (the story so far, in narrative form), inventory.md, equipment.md, and **statbar.md** (HP, mana, movement points when visible).
-
-**Output:**
-
-- Updated memory files (commands, current_location, mobs, session_summary, inventory, equipment, statbar). DH receives this full situational context each turn.
+**Output:** Updated memory files (current_location, session_summary, inventory, equipment, statbar, spells). commands.md is read-only (user-populated). spells.md is written to disk only at kickoff (step 1). On partial failure (one of the six calls raises), that file keeps its previous value and a warning is logged; the cycle continues.
 
 ---
 
@@ -44,7 +37,7 @@ MH updates memory files only. **current_location.md** is the current room only: 
 ## Runtime Flow
 
 1. **Kickoff**: Sends commands like `look`, `score`, `inventory`, `equipment` to populate initial state.
-2. **MH Update**: New MUD output → run_mh → updated memory files (commands, current_location, mobs, session_summary, inventory, equipment, statbar).
+2. **MH Update**: New MUD output → run_mh_parallel (six API calls in parallel: current_location, session_summary, inventory, equipment, statbar, spells) → updated memory files.
 3. **DH Action**: Build context from memory + game_buffer + play_summary. Call run_dh_action → chosen command. (Manual override: user can type a command in the terminal to inject it instead.)
 4. **Execute**: Send chosen command to MUD; wait for silence.
 5. **DH Goals**: Call run_dh_goals(mh_state, action, actual_output, goals) → goals_update. Write goals_update to goals.md.

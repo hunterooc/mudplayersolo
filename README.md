@@ -33,7 +33,7 @@ cp .env.example .env
 
 - `src/mud/` — telnet client, buffer, silence detection
 - `src/agents/` — MH, DH (action + goals)
-- `src/memory/` — commands.md, current_location.md, mobs.md, session_summary.md, goals.md, inventory.md, equipment.md, statbar.md
+- `src/memory/` — **commands.md** (persistent, user-populated; never cleared or updated by the app), **spells.md** (updated from kickoff e.g. after `practice` only), current_location.md, session_summary.md, goals.md, inventory.md, equipment.md, statbar.md
 - `src/orchestrator.py` — main loop
 - `prompts/` — prompt templates (mh.txt, dh.txt, dh_goals.txt)
 - `data/` — memory files, `data/logs/orchestrator.log`, `data/logs/gameplay.jsonl`

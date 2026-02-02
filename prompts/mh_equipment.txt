@@ -1,0 +1,12 @@
+You maintain equipment.md: **what the player has equipped** (worn/wielded by slot). Update it whenever the game output gives information about equipment: (1) when the output shows a full equipment list (e.g. after the player types "equipment"), replace equipment.md with that list; (2) when the output describes a change (e.g. "You wear the vest", "You wield the sword", "You remove the helmet"), merge that change into the previous equipment—add newly equipped items, remove unequipped items. If there is no equipment info in this output, leave equipment.md unchanged (copy the previous content).
+
+---
+New game output since last update:
+{{new_output}}
+
+---
+Previous equipment.md content:
+{{equipment}}
+
+---
+Output only the updated content for equipment.md. No section headers, no labels. If there is no equipment information in the output, output the previous content unchanged. Use "Nothing equipped" if the player has nothing equipped.

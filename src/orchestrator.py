@@ -11,7 +11,7 @@ from typing import Optional
 from src.config import load_config, resolve_path, PROJECT_ROOT
 from src.mud.client import MUDClient
 from src.memory.store import MemoryStore
-from src.agents.mh import run_mh
+from src.agents.mh import run_mh_parallel
 from src.agents.dh import run_dh_action, run_dh_goals
 
 
@@ -69,10 +69,10 @@ def run_cycle(
     new_output_override: Optional[str] = None,
     commands_sent_this_session: Optional[list[str]] = None,
     inject_command: Optional[str] = None,
-) -> tuple[str, str, str, str, str, str, str, Optional[str], Optional[str], Optional[str]]:
+) -> tuple[str, str, str, str, str, str, str, str, Optional[str], Optional[str], Optional[str]]:
     """
     One full cycle: MH -> DH(action) -> execute -> DH(goals) -> debug log.
-    Returns (commands, current_location, mobs, session_summary, inventory, equipment, statbar, chosen_action, goals_after, mud_output).
+    Returns (commands, current_location, mobs, session_summary, inventory, equipment, statbar, spells, chosen_action, goals_after, mud_output).
     """
     cfg = load_config()
     silence_timeout = cfg.get("mud", {}).get("silence_timeout_sec", 10.0)
@@ -82,7 +82,7 @@ def run_cycle(
 
     # 1. MH update (use override for step 1 so MH sees full kickoff output including room from "look")
     new_output = new_output_override if new_output_override is not None else client.get_buffer_since_last_command()
-    commands, current_location, mobs, session_summary, inventory, equipment, statbar = run_mh(
+    commands, current_location, mobs, session_summary, inventory, equipment, statbar, spells = run_mh_parallel(
         new_output=new_output,
         commands=commands,
         spells=spells,
@@ -94,6 +94,9 @@ def run_cycle(
         statbar=statbar,
         memory_store=memory,
     )
+    # spells.md updated only at kickoff (step 1), e.g. after "practice" in kickoff_commands
+    if step == 1 and spells and spells.strip():
+        memory.write_spells(spells)
     context_at_decision = (current_location or "").strip() + "\n\n" + (session_summary or "").strip() + "\n\n" + (statbar or "").strip()
     if log:
         log.info("step=%d MH (first 200 chars context): %s", step, (context_at_decision or "")[:200].replace("\n", " "))
@@ -137,7 +140,7 @@ def run_cycle(
         if log:
             log.info("step=%d wait and observe: no command sent", step)
         client.wait_silence(timeout_sec=silence_timeout)
-        return commands, current_location, mobs, session_summary, inventory, equipment, statbar, "(wait)", goals, None
+        return commands, current_location, mobs, session_summary, inventory, equipment, statbar, spells, "(wait)", goals, None
 
     # 3. Execute
     client.send(chosen)
@@ -177,6 +180,7 @@ def run_cycle(
         "inventory": (inventory or "").strip(),
         "equipment": (equipment or "").strip(),
         "commands": (commands or "").strip(),
+        "spells": (spells or "").strip(),
         "mobs": (mobs or "").strip(),
         "game_buffer": game_buffer[-4000:] if game_buffer else "",  # last 4k chars for inspection
     }
@@ -190,22 +194,8 @@ def run_cycle(
     with open(gameplay_log_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(debug_entry, ensure_ascii=False) + "\n")
 
-    # 7. Update memory with the response we just got (so next cycle has it)
-    mud_output_final = client.get_buffer_since_last_command()
-    commands, current_location, mobs, session_summary, inventory, equipment, statbar = run_mh(
-        new_output=mud_output_final,
-        commands=commands,
-        spells=spells,
-        current_location=current_location,
-        mobs=mobs,
-        session_summary=session_summary,
-        inventory=inventory,
-        equipment=equipment,
-        statbar=statbar,
-        memory_store=memory,
-    )
-
-    return commands, current_location, mobs, session_summary, inventory, equipment, statbar, chosen, goals_after, mud_output
+    # No second MH here: the response we just got will be processed by the first MH of the next cycle (get_buffer_since_last_command() there = this mud_output). Running MH twice on the same data was redundant.
+    return commands, current_location, mobs, session_summary, inventory, equipment, statbar, spells, chosen, goals_after, mud_output
 
 
 def run(
@@ -237,8 +227,9 @@ def run(
 
     memory_dir = resolve_path("memory_dir")
     memory_dir.mkdir(parents=True, exist_ok=True)
-    for name in ("current_location.md", "session_summary.md", "goals.md", "inventory.md", "equipment.md", "statbar.md"):
+    for name in ("spells.md", "current_location.md", "session_summary.md", "goals.md", "inventory.md", "equipment.md", "statbar.md"):
         (memory_dir / name).write_text("", encoding="utf-8")
+    # commands.md is persistent (user-populated); do not clear
     logger.info("Cleared memory files for fresh run: %s", memory_dir)
     memory = MemoryStore(memory_dir=memory_dir)
     client = MUDClient(host=host, port=port, silence_timeout_sec=silence_timeout)
@@ -309,7 +300,7 @@ def run(
                     pending_stdin_inject = None
             if inject_command:
                 logger.info("Injecting command: %s", inject_command)
-            commands, current_location, mobs, session_summary, inventory, equipment, statbar, chosen, goals_after, mud_out = run_cycle(
+            commands, current_location, mobs, session_summary, inventory, equipment, statbar, spells, chosen, goals_after, mud_out = run_cycle(
                 client=client,
                 memory=memory,
                 commands=commands,

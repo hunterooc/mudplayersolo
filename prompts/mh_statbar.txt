@@ -1,0 +1,12 @@
+You maintain statbar.md: the most recent **hitpoints, mana, and movement points** when visible in the output (e.g. status line "32H 89M 31V" or "score" text "You have X(Y) hit, A(B) mana and Z(W) movement points"). One line or a few lines; leave unchanged if no stat info in this output.
+
+---
+New game output since last update:
+{{new_output}}
+
+---
+Previous statbar.md content:
+{{statbar}}
+
+---
+Output only the updated content for statbar.md. No section headers, no labels. If there is no HP/mana/movement information in the output, output the previous content unchanged.

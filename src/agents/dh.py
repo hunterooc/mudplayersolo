@@ -50,7 +50,7 @@ def run_dh_action(
         raise ValueError("OPENAI_API_KEY not set")
     client = client or OpenAI(api_key=api_key)
     cfg = load_config()
-    model = cfg.get("openai", {}).get("model", "gpt-5-mini")
+    model = cfg.get("openai", {}).get("model", "gpt-4o-mini")
     template = _load_prompt("dh.txt")
     prompt = _fill(
         template,
@@ -104,7 +104,7 @@ def run_dh_goals(
         raise ValueError("OPENAI_API_KEY not set")
     client = client or OpenAI(api_key=api_key)
     cfg = load_config()
-    model = cfg.get("openai", {}).get("model", "gpt-5-mini")
+    model = cfg.get("openai", {}).get("model", "gpt-4o-mini")
     template = _load_prompt("dh_goals.txt")
     prompt = _fill(
         template,
