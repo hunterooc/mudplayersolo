@@ -1,70 +1,138 @@
-# MUD Player Architecture (MH + DH)
+# MUD Player Architecture
+
+## Overview
+
+An autonomous MUD player with three main components:
+
+1. **MH (Memory Head):** Maintains situational awareness via parallel API calls
+2. **DH (Decision Head):** Chooses actions and updates goals
+3. **Auto-Prompt-Engineering Loop (Critic → Engineer → Editor):** Periodically reviews gameplay and improves the DH prompt
+
+All testing was done on [tbaMUD](https://github.com/tbamud/tbamud) (based on CircleMUD/DikuMUD).
+
+---
 
 ## Agents and Their Roles
 
 ### 1. MH — Memory Head (parallel)
 
-- **Model**: GPT-5-mini (API)
-- **Purpose**: Maintains and updates the agent's internal game state (situational awareness). Runs **six API calls in parallel**, one per file, so wall-clock time is roughly the slowest call instead of the sum of all six.
+- **Model**: Configurable (default: gpt-4o-mini)
+- **Purpose**: Maintains the agent's internal game state (situational awareness). Runs **six API calls in parallel**, one per file.
 
-**Per-file prompts** (under `prompts/`): mh_current_location.txt, mh_session_summary.txt, mh_inventory.txt, mh_equipment.txt, mh_statbar.txt, mh_spells.txt. Each gets new MUD output and the previous value for that file only; each returns the updated content for that file (no section headers to parse).
+**Per-file prompts** (under `prompts/`): mh_current_location.txt, mh_session_summary.txt, mh_inventory.txt, mh_equipment.txt, mh_statbar.txt, mh_spells.txt.
 
-**Input (per call):** New MUD output since last cycle + previous content for that file (current_location, session_summary, inventory, equipment, statbar, or spells).
+**Input (per call):** New MUD output + previous content for that file.
 
-**Output:** Updated memory files (current_location, session_summary, inventory, equipment, statbar, spells). commands.md is read-only (user-populated). spells.md is written to disk only at kickoff (step 1). On partial failure (one of the six calls raises), that file keeps its previous value and a warning is logged; the cycle continues.
+**Output:** Updated memory files (current_location, session_summary, inventory, equipment, statbar, spells). On partial failure, that file keeps its previous value and a warning is logged.
 
 ---
 
 ### 2. DH — Decision Head
 
-- **Model**: GPT-5-mini (API)
-- **Purpose**: (1) Chooses the next MUD command from MH state + goals. (2) After each action, updates **goals.md** from the outcome.
+- **Model**: Configurable (default: gpt-4o-mini)
+- **Purpose**: (1) Chooses the next MUD command. (2) Updates goals based on outcomes.
 
 **Two modes:**
 
-1. **Action mode:** Given full MH state (current_location, session_summary, statbar, goals, inventory, equipment, commands, mobs, game_buffer, play_summary), output the single best next command. No candidate list—DH decides freely from state and goals.
-2. **Goals mode:** Given game state at decision time, the action taken, and the actual MUD output, output updated goals.md content (mark completed, add immediate goals from outcome, keep or adjust long-term goals). Format: ## Long-Term Goals / ## Immediate Goals with bullet lists.
+1. **Action mode:** Given full MH state + goals + game buffer, output the single best command. Also outputs a reason/rationale for the choice.
+2. **Goals mode:** Given state, action taken, and MUD output, update goals.md (mark completed, add new goals).
 
-**Action criteria (in order of priority):** Safety (avoid death/heavy damage), Progress (XP, loot, new areas, goals), Learn or explore (new information when safe). Priority rule: survival first, then progress, then exploitation of known good options. Prefer actions that align with current goals when safety and feasibility allow.
+**Action criteria (priority order):** Survival → Progress → Exploration. Respects inventory/spell constraints (won't try to eat food not in inventory or cast unknown spells).
 
-**Output:**
+**Output format (action mode):**
+```
+Reason: <rationale>
+Command: <command>
+```
 
-- Action mode: one command string (e.g. "north", "get sword", "cast fireball goblin").
-- Goals mode: the GOALS.MD section text (written to goals.md after each step).
+---
+
+### 3. Auto-Prompt-Engineering Loop
+
+Every N steps (configurable via `orchestrator.critic_interval`), three agents run in sequence to improve the DH prompt:
+
+#### Critic
+- **Model**: Smarter model (e.g. gpt-4o)
+- **Input**: All gameplay log entries since last critic run
+- **Output**: Structured diagnosis — what's going well (2-4 bullets), what's not going well (2-4 bullets)
+- **Logs to**: `data/logs/critic.jsonl`
+
+#### Engineer
+- **Model**: Smarter model (e.g. gpt-4o)
+- **Input**: Critic's diagnosis + current DH prompt (prompts/dh.txt)
+- **Output**: Specific, actionable edit instructions (e.g. "After line X, add: ...")
+- **Logs to**: `data/logs/engineer_changes.jsonl`
+
+#### Editor
+- **Model**: Cheaper model (e.g. gpt-4o-mini)
+- **Input**: Engineer's edit instructions + current DH prompt
+- **Output**: Complete new DH prompt (written to prompts/dh.txt)
+
+This loop allows the agent to learn from mistakes (e.g. repeating failed commands) and improve its decision-making prompt automatically.
 
 ---
 
 ## Runtime Flow
 
-1. **Kickoff**: Sends commands like `look`, `score`, `inventory`, `equipment` to populate initial state.
-2. **MH Update**: New MUD output → run_mh_parallel (six API calls in parallel: current_location, session_summary, inventory, equipment, statbar, spells) → updated memory files.
-3. **DH Action**: Build context from memory + game_buffer + play_summary. Call run_dh_action → chosen command. (Manual override: user can type a command in the terminal to inject it instead.)
-4. **Execute**: Send chosen command to MUD; wait for silence.
-5. **DH Goals**: Call run_dh_goals(mh_state, action, actual_output, goals) → goals_update. Write goals_update to goals.md.
-6. **Debug log**: Append one JSON object per step to `data/logs/gameplay.jsonl`: step, mh_context (what MH sent to DH), action, mud_output, goals_after. Use this to debug "what did DH see when it chose this action?"
-7. **Repeat**: Next cycle starts with MH on the latest buffer.
+1. **Kickoff**: Send commands like `look`, `score`, `inventory`, `equipment`, `practice` to populate initial state.
+
+2. **Main Loop** (each step):
+   - **MH Update**: New MUD output → 6 parallel API calls → updated memory files
+   - **DH Action**: Build context → run_dh_action → (reason, command)
+   - **Execute**: Send command to MUD; wait for silence
+   - **DH Goals**: run_dh_goals(state, action, output) → update goals.md
+   - **Debug log**: Append to gameplay.jsonl
+
+3. **Auto-Prompt-Engineering** (every N steps):
+   - Run Critic on gameplay log since last run
+   - Run Engineer with diagnosis + current DH prompt
+   - Run Editor to apply changes → write new prompts/dh.txt
+
+4. **Repeat** until max_steps or disconnect.
 
 ---
 
 ## Debug Log Format
 
-**Path:** `data/logs/gameplay.jsonl` (config: `paths.gameplay_log`).
+**Path:** `data/logs/gameplay.jsonl`
 
 **Per-line JSON fields:**
-
 - `step`: int
-- `mh_context`: object with keys current_location, session_summary, statbar, goals, inventory, equipment, commands, mobs, game_buffer (last ~4k chars)
+- `mh_context`: object with current_location, session_summary, statbar, goals, inventory, equipment, commands, spells, mobs, game_buffer
 - `action`: string (command sent)
-- `mud_output`: string (MUD response after action)
-- `goals_after`: string (goals.md content after this step)
+- `mud_output`: string (MUD response)
+- `goals_after`: string (goals.md after this step)
 
-This keeps debugging focused on situational awareness and outcomes without any world-model or training fields.
+---
+
+## Config Reference
+
+Key settings in `config.yaml`:
+
+```yaml
+orchestrator:
+  critic_interval: 20        # Run critic/engineer/editor every N steps (null = disabled)
+  game_buffer_max_lines: 100
+  game_buffer_max_chars_for_critic: 16000
+
+openai:
+  model: gpt-4o-mini         # Default model (MH, DH)
+  model_critic: gpt-4o       # Smarter model for critic
+  model_engineer: gpt-4o     # Smarter model for engineer
+  model_editor: gpt-4o-mini  # Cheaper model for editor
+
+paths:
+  gameplay_log: data/logs/gameplay.jsonl
+  critic_log: data/logs/critic.jsonl
+  engineer_changes_log: data/logs/engineer_changes.jsonl
+```
 
 ---
 
 ## Notes
 
-- MH and DH are both prompt-driven API calls (OpenAI).
-- Goals are maintained by DH (goals update call) and written to goals.md after each step; DH action sees them on the next turn.
-- Memory files are cleared at startup (current_location, session_summary, goals, inventory, equipment, statbar) so each run starts fresh.
-- Manual override: type a command in the orchestrator terminal and press Enter to send it as the next action instead of DH's choice.
+- All agents are prompt-driven API calls (OpenAI).
+- Memory files (except commands.md) are cleared at startup for a fresh run.
+- Log files (gameplay, critic, engineer_changes) are also cleared at startup.
+- Manual override: type a command in the orchestrator terminal to inject it instead of DH's choice.
+- The DH prompt (prompts/dh.txt) may be modified by the auto-prompt-engineering loop during a run.
