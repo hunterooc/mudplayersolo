@@ -13,6 +13,9 @@ from src.mud.client import MUDClient
 from src.memory.store import MemoryStore
 from src.agents.mh import run_mh_parallel
 from src.agents.dh import run_dh_action, run_dh_goals
+from src.agents.critic import run_critic
+from src.agents.engineer import run_engineer
+from src.agents.editor import run_editor
 
 
 def _format_play_summary(commands_sent: list[str]) -> str:
@@ -69,10 +72,10 @@ def run_cycle(
     new_output_override: Optional[str] = None,
     commands_sent_this_session: Optional[list[str]] = None,
     inject_command: Optional[str] = None,
-) -> tuple[str, str, str, str, str, str, str, str, Optional[str], Optional[str], Optional[str]]:
+) -> tuple[str, str, str, str, str, str, str, str, Optional[str], Optional[str], Optional[str], str]:
     """
     One full cycle: MH -> DH(action) -> execute -> DH(goals) -> debug log.
-    Returns (commands, current_location, mobs, session_summary, inventory, equipment, statbar, spells, chosen_action, goals_after, mud_output).
+    Returns (commands, current_location, mobs, session_summary, inventory, equipment, statbar, spells, chosen_action, goals_after, mud_output, reason).
     """
     cfg = load_config()
     silence_timeout = cfg.get("mud", {}).get("silence_timeout_sec", 10.0)
@@ -114,12 +117,13 @@ def run_cycle(
     play_summary = _format_play_summary(commands_sent)
 
     # 2. If user injected a command, use it; else DH action
+    reason = ""
     if inject_command and inject_command.strip():
         chosen = inject_command.strip()
         if log:
             log.info("step=%d using injected command: %s", step, chosen)
     else:
-        chosen = run_dh_action(
+        reason, chosen = run_dh_action(
             game_buffer=game_buffer,
             commands=commands,
             spells=spells,
@@ -133,14 +137,14 @@ def run_cycle(
             play_summary=play_summary,
         )
         if log:
-            log.info("step=%d DH chose: %s", step, chosen)
+            log.info("step=%d DH chose: %s (reason: %s)", step, chosen, reason or "(none)")
 
     # "wait and observe" = no command; wait for silence only, skip send/goals/log
     if chosen and chosen.strip().lower() == "wait and observe":
         if log:
             log.info("step=%d wait and observe: no command sent", step)
         client.wait_silence(timeout_sec=silence_timeout)
-        return commands, current_location, mobs, session_summary, inventory, equipment, statbar, spells, "(wait)", goals, None
+        return commands, current_location, mobs, session_summary, inventory, equipment, statbar, spells, "(wait)", goals, None, ""
 
     # 3. Execute
     client.send(chosen)
@@ -182,7 +186,7 @@ def run_cycle(
         "commands": (commands or "").strip(),
         "spells": (spells or "").strip(),
         "mobs": (mobs or "").strip(),
-        "game_buffer": game_buffer[-4000:] if game_buffer else "",  # last 4k chars for inspection
+        "game_buffer": game_buffer[-cfg.get("orchestrator", {}).get("game_buffer_max_chars_for_critic", 4000):] if game_buffer else "",  # relaxed for critic
     }
     debug_entry = {
         "step": step,
@@ -195,7 +199,7 @@ def run_cycle(
         f.write(json.dumps(debug_entry, ensure_ascii=False) + "\n")
 
     # No second MH here: the response we just got will be processed by the first MH of the next cycle (get_buffer_since_last_command() there = this mud_output). Running MH twice on the same data was redundant.
-    return commands, current_location, mobs, session_summary, inventory, equipment, statbar, spells, chosen, goals_after, mud_output
+    return commands, current_location, mobs, session_summary, inventory, equipment, statbar, spells, chosen, goals_after, mud_output, reason
 
 
 def run(
@@ -221,6 +225,9 @@ def run(
     (logs_dir / "orchestrator.log").write_text("")
     gameplay_log_path.parent.mkdir(parents=True, exist_ok=True)
     gameplay_log_path.write_text("")
+    # Reset critic and engineer logs for fresh run
+    resolve_path("critic_log").write_text("")
+    resolve_path("engineer_changes_log").write_text("")
 
     logger = _make_orchestrator_logger(logs_dir)
     logger.info("Starting orchestrator max_steps=%s host=%s port=%s", max_steps, host, port)
@@ -261,9 +268,15 @@ def run(
     full_kickoff_buffer = _strip_login_menu_from_buffer(client.get_full_buffer(), kickoff_commands)
 
     step = 0
+    last_critic_step = 0
     commands_sent_this_session: list[str] = []
     stdin_inject_lock = threading.Lock()
     pending_stdin_inject: Optional[str] = None
+    critic_interval = orch_cfg.get("critic_interval")
+    prompts_dir = Path(cfg.get("paths", {}).get("prompts_dir", "prompts"))
+    if not prompts_dir.is_absolute():
+        prompts_dir = PROJECT_ROOT / prompts_dir
+    dh_prompt_path = prompts_dir / "dh.txt"
 
     def _stdin_reader() -> None:
         nonlocal pending_stdin_inject
@@ -300,7 +313,7 @@ def run(
                     pending_stdin_inject = None
             if inject_command:
                 logger.info("Injecting command: %s", inject_command)
-            commands, current_location, mobs, session_summary, inventory, equipment, statbar, spells, chosen, goals_after, mud_out = run_cycle(
+            commands, current_location, mobs, session_summary, inventory, equipment, statbar, spells, chosen, goals_after, mud_out, reason = run_cycle(
                 client=client,
                 memory=memory,
                 commands=commands,
@@ -321,7 +334,30 @@ def run(
                 print(f"Step {step}: wait and observe (no command sent)")
             else:
                 commands_sent_this_session.append(chosen)
-                print(f"Step {step}: action={chosen!r}")
+                if reason:
+                    print(f"Step {step}: {reason} -> {chosen!r}")
+                else:
+                    print(f"Step {step}: action={chosen!r}")
+
+            # Critic -> Engineer -> Editor every N steps (only DH prompt)
+            if critic_interval is not None and critic_interval > 0 and step % critic_interval == 0:
+                try:
+                    logger.info("step=%d running critic -> engineer -> editor", step)
+                    diagnosis = run_critic(
+                        gameplay_log_path=gameplay_log_path,
+                        since_step=last_critic_step,
+                        current_step=step,
+                    )
+                    current_dh = dh_prompt_path.read_text(encoding="utf-8")
+                    specific_changes = run_engineer(diagnosis=diagnosis, dh_prompt=current_dh)
+                    new_dh = run_editor(specific_changes=specific_changes, current_dh_prompt=current_dh)
+                    if new_dh and new_dh.strip():
+                        dh_prompt_path.write_text(new_dh, encoding="utf-8")
+                        logger.info("step=%d updated prompts/dh.txt from editor", step)
+                    last_critic_step = step
+                except Exception as e:  # noqa: BLE001
+                    logger.warning("step=%d critic/engineer/editor failed: %s", step, e)
+
     except KeyboardInterrupt:
         logger.info("Interrupted by user (Ctrl+C).")
     finally:

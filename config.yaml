@@ -13,11 +13,17 @@ paths:
   logs_dir: data/logs
   gameplay_log: data/logs/gameplay.jsonl
   prompts_dir: prompts
+  critic_log: data/logs/critic.jsonl
+  engineer_changes_log: data/logs/engineer_changes.jsonl
 
 # API agents (OpenAI)
 openai:
   model: gpt-4o-mini
   temperature: 1   # set lower (e.g. 0.7) for more deterministic outputs if desired
+  # Meta-agents (critic/engineer use smarter model; editor uses cheaper)
+  model_critic: gpt-4o
+  model_engineer: gpt-4o
+  model_editor: gpt-4o-mini
 
 # Orchestrator
 orchestrator:
@@ -29,3 +35,7 @@ orchestrator:
     - practice   # when not at guildmaster, shows known spells/skills
   max_steps: null           # null = run until stopped
   game_buffer_max_lines: 100  # DH sees this many lines of recent game output
+  critic_interval: 20       # run critic -> engineer -> editor every N steps (null = disabled)
+  # For critic: use more of game buffer so critic has full picture (chars per step in gameplay log)
+  game_buffer_max_chars_for_critic: 16000  # default 4k in debug log; relax for critic excerpt
+

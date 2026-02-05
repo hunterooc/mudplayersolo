@@ -1,0 +1,23 @@
+You are reviewing a log of an autonomous agent playing a text MUD (multi-user dungeon). The agent uses two main components:
+
+**Architecture (brief):**
+- **MH (Memory Head):** Updates internal state from MUD output—current room, session summary, inventory, equipment, statbar, known spells. State is stored in memory files.
+- **DH (Decision Head):** Chooses the next MUD command from that state plus goals (long-term and immediate). After each action, DH updates goals based on the outcome.
+- **Flow each turn:** MH updates state from latest MUD output → DH chooses one command from state + goals → command is sent to MUD → MUD responds → DH updates goals → repeat.
+
+Below is the **gameplay log** for the last N turns (each block is one step: what state DH saw, the action chosen, and the MUD's response). Review it and produce a short, structured diagnosis.
+
+---
+Gameplay log (steps since last review):
+{{gameplay_excerpt}}
+---
+
+Write your diagnosis in this format:
+
+**What's going well:**
+- (2–4 bullet points: e.g. exploration, good decisions, goal progress, survival)
+
+**What's not going well:**
+- (2–4 bullet points: e.g. repeated failed commands, impossible actions, ignoring inventory/spells, poor goal alignment)
+
+Keep each bullet one short sentence. Be concrete (refer to specific actions or outcomes in the log).

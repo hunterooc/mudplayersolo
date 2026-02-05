@@ -1,0 +1,13 @@
+You are applying edit instructions to an LLM prompt which helps an AI agent choose the right move in a MUD game. Below are (1) the **specific changes** requested and (2) the **current full prompt** being used to make decisions. Output the **complete new prompt** that results from applying those changes. Preserve all placeholder names exactly (e.g. {{play_summary}}, {{session_summary}}, {{goals}}, {{inventory}}, {{equipment}}, {{game_buffer}}, {{commands}}, {{spells}}, {{current_location}}, {{mobs}}, {{statbar}}). Output only the new prompt text—no preamble or explanation.
+
+---
+Edit instructions:
+{{specific_changes}}
+---
+
+---
+Current DH prompt:
+{{current_dh_prompt}}
+---
+
+Output the full new prompt (complete file content) below:

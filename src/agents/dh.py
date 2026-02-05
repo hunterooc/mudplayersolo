@@ -40,10 +40,10 @@ def run_dh_action(
     statbar: str = "",
     play_summary: str = "",
     client: Optional[OpenAI] = None,
-) -> str:
+) -> tuple[str, str]:
     """
     Run DH action mode: given full MH state + goals, output the next MUD command.
-    Returns chosen action string.
+    Returns (reason, command) tuple.
     """
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -76,6 +76,20 @@ def run_dh_action(
     )
     text = (resp.choices[0].message.content or "").strip()
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    
+    # Extract reason if present (Reason: X)
+    reason = ""
+    for ln in lines:
+        if re.match(r"^reason\s*:\s*", ln, re.IGNORECASE):
+            reason = ln.split(":", 1)[-1].strip()
+            break
+    
+    # Prefer explicit "Command: X" line (rationale before command format)
+    for ln in lines:
+        if re.match(r"^command\s*:\s*", ln, re.IGNORECASE):
+            cmd = ln.split(":", 1)[-1].strip()
+            if cmd and len(cmd) <= 200 and re.match(r"^[\w\s\-']+$", cmd, re.IGNORECASE):
+                return (reason, cmd)
     for ln in lines:
         ln = re.sub(r"^[\d\.\)\-\*]+\s*", "", ln).strip()
         ln = re.sub(r"^`+|`+$", "", ln).strip()
@@ -84,8 +98,8 @@ def run_dh_action(
         if not ln or ln in ("```", "`") or len(ln) > 200 or ln.endswith("."):
             continue
         if re.match(r"^[\w\s\-']+$", ln, re.IGNORECASE):
-            return ln
-    return "look"
+            return (reason, ln)
+    return (reason, "look")
 
 
 def run_dh_goals(

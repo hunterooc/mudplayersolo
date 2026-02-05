@@ -35,12 +35,21 @@ def _default_config():
             "logs_dir": "data/logs",
             "gameplay_log": "data/logs/gameplay.jsonl",
             "prompts_dir": "prompts",
+            "critic_log": "data/logs/critic.jsonl",
+            "engineer_changes_log": "data/logs/engineer_changes.jsonl",
         },
-        "openai": {"model": os.getenv("OPENAI_MODEL", "gpt-4o-mini")},
+        "openai": {
+            "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            "model_critic": os.getenv("OPENAI_MODEL_CRITIC", "gpt-4o"),
+            "model_engineer": os.getenv("OPENAI_MODEL_ENGINEER", "gpt-4o"),
+            "model_editor": os.getenv("OPENAI_MODEL_EDITOR", "gpt-4o-mini"),
+        },
         "orchestrator": {
             "kickoff_commands": ["look", "score", "inventory", "equipment"],
             "max_steps": None,
             "game_buffer_max_lines": 100,
+            "critic_interval": 20,
+            "game_buffer_max_chars_for_critic": 16000,
         },
     }
 

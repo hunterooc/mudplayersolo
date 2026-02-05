@@ -1,6 +1,27 @@
+You are updating the goals for the player of a MUD text-based adventure game. Update goals: remove goals that are no longer necessary, add new goals if the gameplay suggests one (e.g. found a new area, killed a mob and able to loot the corpse), and add or keep long-term goals as appropriate. If no goals exist yet, add initial generic goals (e.g. "Explore the area", "Gain experience").
+
+---
+Current goals (goals.md):
+{{goals}}
+
+---
+Game state at decision time:
+{{mh_state}}
+
+---
+Chosen action:
+{{action}}
+
+---
+Actual MUD output since action:
+{{actual_output}}
+
+---
+Output only the goals section. You must output the === GOALS.MD === header then the content so goals.md is updated every turn. Use the current goals (above) and update them based on the outcome. Format: ## Long-Term Goals / ## Immediate Goals with bullet lists. Suggest no more than 3 long-term goals; suggest no more than 4 immediate goals.
+
 === GOALS.MD ===
 ## Long-Term Goals
-- (suggest 2 to 5 based on the session summary; e.g. level up, gain gold, find better equipment)
+- (e.g. level up, gain gold, find better equipment)
 
 ## Immediate Goals
-- (suggest 2 to 5 based on most recent gameplay; e.g. Explore an area, eat to relieve hunger, gain xp through prudent combat)
+- (e.g. eat to relieve hunger, gain xp through combat with mobs)
