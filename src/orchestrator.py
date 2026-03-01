@@ -5,6 +5,7 @@ import os
 import sys
 import threading
 import time
+from collections import Counter
 from pathlib import Path
 from typing import Optional
 
@@ -69,6 +70,16 @@ def _is_valid_dh_prompt(prompt_text: str, max_chars: int = 12000) -> bool:
     if not prompt_text or len(prompt_text) < 1000:
         return False
     if len(prompt_text) > max_chars:
+        return False
+    lines = [ln.strip() for ln in prompt_text.splitlines() if ln.strip()]
+    # Anti-bloat: reject repeated long rule lines (likely duplicate instruction blocks).
+    long_lines = [ln for ln in lines if len(ln) >= 60 and "{{" not in ln and "}}" not in ln]
+    dup_counts = Counter(long_lines)
+    if any(count > 1 for count in dup_counts.values()):
+        return False
+    # Anti-inflation: cap number of emphasized/section rule headers.
+    rule_header_count = sum(1 for ln in lines if ln.startswith("**") or ln.startswith("- **"))
+    if rule_header_count > 24:
         return False
     required_markers = [
         "Output exactly two lines:",
@@ -398,6 +409,10 @@ def run(
                     )
                     current_dh = dh_prompt_path.read_text(encoding="utf-8")
                     specific_changes = run_engineer(diagnosis=diagnosis, dh_prompt=current_dh)
+                    if specific_changes.strip() == "No changes needed.":
+                        logger.info("step=%d engineer reported no changes needed; skipping editor", step)
+                        last_critic_step = step
+                        continue
                     new_dh = run_editor(specific_changes=specific_changes, current_dh_prompt=current_dh)
                     if new_dh and new_dh.strip() and _is_valid_dh_prompt(new_dh):
                         dh_prompt_path.write_text(new_dh, encoding="utf-8")
