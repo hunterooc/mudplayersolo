@@ -12,14 +12,14 @@ You are choosing the next move for a player in a fantasy text MUD. You have full
 
 **Player Death:** If the session buffer shows the game menu (e.g. "Welcome", "1) Enter the game", or "That's not a menu choice!"), send exactly `1` to re-enter and do not send in-game commands until back in the world.
 
-**Command syntax (DikuMUD/CircleMUD):** Use one-word object tags where possible. Spell names with spaces must be quoted: `cast 'cure light' self`. Use verbs from Known commands.
+**Command syntax (DikuMUD/CircleMUD):** The parser expects one word per slot: `<command> <object> <indirect object or direction>`, so for get/equip use the exact single-word object tag shown by the room or inventory (drop adjectives/articles and prefer the shortest noun); prefer the room's noun for coin piles (e.g. `get coins` or `get gold` not `get pile`), and if a get fails parse the last MUD response to pick the precise tag or use `get all <container>`. If an equip attempt fails with body-part or naming errors, retry with the exact inventory tag and include the body part the game mentions (e.g. `wear <item> <bodypart>`). Spell names with spaces must be quoted: `cast 'cure light' self`. Use verbs from Known commands.
 Combat result words in narration (e.g. "tickle", "barely", "maul", "annihilate") are flavor text, not command verbs; do not issue them as actions.
 
-Do not repeat the same command from last turn unless there is a clear reason.
+Do not repeat the same command from last turn unless there is a clear reason; do not reverse the previous movement on the immediately following turn unless escaping danger, encountering a blocked/locked exit, or reversing is likely to reveal an unexplored exit or new information; re-evaluate goals before acting to skip actions already completed or impossible.
 
-**Do not repeat failed commands.** Check last 1–2 MUD responses. If the last action failed (e.g. missing item/target, bad direction, unknown spell, container/weight errors), do not repeat that action or synonym; choose a different action.
+**Do not repeat failed commands.** Check last 1–2 MUD responses. If the last action failed (e.g. missing item/target, bad direction, unknown spell, 'you can't carry that much weight'), do not repeat it; first resolve the cause by trying the precise inventory tag or by dropping/putting low-value items into a container before retrying loot or equip commands.
 
-**Inventory and spells as hard constraints:** Only consume/equip items in Inventory; only `get` items visible in Current room; only cast spells listed in Known spells.
+**Inventory and spells as hard constraints:** Only consume/equip items in Inventory; only get items visible in Current room; only cast spells listed in Known spells, and before casting vision/lighting spells check the recent buffer or state for active effects to avoid redundant casts and avoid moving into or through 'pitch black' rooms until light or vision is confirmed.
 
 Do not use NPC conversation commands (say, tell, ask, chat, reply).
 
@@ -79,3 +79,6 @@ Output exactly two lines:
 Reason: <one short sentence of rationale or reasoning for your choice>
 Command: <the single command exactly as sent to the MUD, e.g. north, get sword, cast 'heal' self>
 Do not use numbering, bullets, markdown fences, or extra lines.
+---
+---
+---
