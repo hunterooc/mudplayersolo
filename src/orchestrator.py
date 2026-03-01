@@ -18,11 +18,16 @@ from src.agents.engineer import run_engineer
 from src.agents.editor import run_editor
 
 
-def _format_play_summary(commands_sent: list[str]) -> str:
-    """Format list of commands sent this session for DH (Turn 1: X. Turn 2: Y. ...)."""
+def _format_play_summary(commands_sent: list[str], max_turns: int = 10) -> str:
+    """Format recent commands for DH (Turn N: X. Turn N+1: Y. ...). Keeps only last max_turns to avoid repetition loops."""
     if not commands_sent:
         return "None yet (this is the first turn)."
-    return " ".join(f"Turn {i}: {cmd}." for i, cmd in enumerate(commands_sent, 1))
+    recent = commands_sent[-max_turns:]
+    start = len(commands_sent) - len(recent) + 1
+    parts = [f"Turn {start + i}: {cmd}." for i, cmd in enumerate(recent)]
+    if len(commands_sent) > max_turns:
+        parts.insert(0, f"({len(commands_sent) - max_turns} earlier turns omitted.)")
+    return " ".join(parts)
 
 
 def _strip_login_menu_from_buffer(buffer: str, kickoff_commands: list[str]) -> str:
@@ -54,6 +59,29 @@ def _make_orchestrator_logger(logs_dir: Path) -> logging.Logger:
     sh.setFormatter(logging.Formatter("%(asctime)s [orch] %(message)s"))
     log.addHandler(sh)
     return log
+
+
+def _is_valid_dh_prompt(prompt_text: str, max_chars: int = 12000) -> bool:
+    """
+    Guardrail for auto-edits: only accept a plausible full DH template.
+    Prevents accidental replacement with short instruction text or unbounded bloat.
+    """
+    if not prompt_text or len(prompt_text) < 1000:
+        return False
+    if len(prompt_text) > max_chars:
+        return False
+    required_markers = [
+        "Output exactly two lines:",
+        "{{game_buffer}}",
+        "{{current_location}}",
+        "{{goals}}",
+        "{{inventory}}",
+        "{{commands}}",
+        "{{spells}}",
+        "Reason:",
+        "Command:",
+    ]
+    return all(marker in prompt_text for marker in required_markers)
 
 
 def run_cycle(
@@ -104,17 +132,22 @@ def run_cycle(
     if log:
         log.info("step=%d MH (first 200 chars context): %s", step, (context_at_decision or "")[:200].replace("\n", " "))
 
-    # Build game buffer for DH
+    # Build game buffer for DH (tail only; session_summary covers history)
     full_buffer = client.get_full_buffer()
-    max_lines = (cfg.get("orchestrator") or {}).get("game_buffer_max_lines", 100)
+    orch = cfg.get("orchestrator") or {}
+    max_lines = orch.get("game_buffer_max_lines", 80)
+    max_chars = orch.get("game_buffer_max_chars_for_dh", 4000)
     full_lines = full_buffer.splitlines()
-    n = max(max_lines, len(full_buffer.splitlines()))
-    game_buffer = "\n".join(full_lines[-n:]) if len(full_lines) > n else full_buffer
+    tail_lines = full_lines[-max_lines:] if len(full_lines) > max_lines else full_lines
+    game_buffer = "\n".join(tail_lines)
+    if len(game_buffer) > max_chars:
+        game_buffer = game_buffer[-max_chars:]
     if not game_buffer.strip():
         game_buffer = new_output
 
     commands_sent = commands_sent_this_session or []
-    play_summary = _format_play_summary(commands_sent)
+    play_summary_max = orch.get("play_summary_max_turns", 10)
+    play_summary = _format_play_summary(commands_sent, max_turns=play_summary_max)
 
     # 2. If user injected a command, use it; else DH action
     reason = ""
@@ -152,7 +185,7 @@ def run_cycle(
         log.info("step=%d sent: %s", step, chosen)
 
     # 4. Wait for MUD response
-    client.wait_silence(timeout_sec=silence_timeout * 2)
+    client.wait_silence(timeout_sec=silence_timeout * 1.5)
     mud_output = client.get_buffer_since_last_command()
     if log and mud_output:
         mud_one_line = mud_output.replace("\r", "").replace("\n", " | ").strip()
@@ -260,7 +293,7 @@ def run(
     for cmd in kickoff_commands:
         client.send(cmd)
         client.drain(timeout_sec=1.0)
-    client.wait_silence(timeout_sec=silence_timeout * 2)
+    client.wait_silence(timeout_sec=silence_timeout * 1.5)
     kickoff_buffer = client.get_buffer_since_last_command()
     if kickoff_buffer:
         buf_one_line = kickoff_buffer.replace("\r", "").replace("\n", " | ").strip()
@@ -273,6 +306,7 @@ def run(
     stdin_inject_lock = threading.Lock()
     pending_stdin_inject: Optional[str] = None
     critic_interval = orch_cfg.get("critic_interval")
+    statbar_refresh_interval = orch_cfg.get("statbar_refresh_interval")
     prompts_dir = Path(cfg.get("paths", {}).get("prompts_dir", "prompts"))
     if not prompts_dir.is_absolute():
         prompts_dir = PROJECT_ROOT / prompts_dir
@@ -313,6 +347,20 @@ def run(
                     pending_stdin_inject = None
             if inject_command:
                 logger.info("Injecting command: %s", inject_command)
+
+            # Optional passive stat refresh: keep max HP/mana/move up to date.
+            if (
+                statbar_refresh_interval is not None
+                and statbar_refresh_interval > 0
+                and step > 1
+                and step % statbar_refresh_interval == 0
+            ):
+                client.send("score")
+                client.wait_silence(timeout_sec=silence_timeout * 1.5)
+                score_out = client.get_buffer_since_last_command()
+                if score_out:
+                    logger.info("step=%d passive score refresh received", step)
+
             commands, current_location, mobs, session_summary, inventory, equipment, statbar, spells, chosen, goals_after, mud_out, reason = run_cycle(
                 client=client,
                 memory=memory,
@@ -351,9 +399,14 @@ def run(
                     current_dh = dh_prompt_path.read_text(encoding="utf-8")
                     specific_changes = run_engineer(diagnosis=diagnosis, dh_prompt=current_dh)
                     new_dh = run_editor(specific_changes=specific_changes, current_dh_prompt=current_dh)
-                    if new_dh and new_dh.strip():
+                    if new_dh and new_dh.strip() and _is_valid_dh_prompt(new_dh):
                         dh_prompt_path.write_text(new_dh, encoding="utf-8")
                         logger.info("step=%d updated prompts/dh.txt from editor", step)
+                    else:
+                        logger.warning(
+                            "step=%d editor output rejected by DH prompt validator; keeping existing prompts/dh.txt",
+                            step,
+                        )
                     last_critic_step = step
                 except Exception as e:  # noqa: BLE001
                     logger.warning("step=%d critic/engineer/editor failed: %s", step, e)

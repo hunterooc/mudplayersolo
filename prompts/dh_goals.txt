@@ -1,4 +1,15 @@
-You are updating the goals for the player of a MUD text-based adventure game. Update goals: remove goals that are no longer necessary, add new goals if the gameplay suggests one (e.g. found a new area, killed a mob and able to loot the corpse), and add or keep long-term goals as appropriate. If no goals exist yet, add initial generic goals (e.g. "Explore the area", "Gain experience").
+You are updating goals for a player in a basic combat/grind MUD. Keep goals practical and action-oriented for this style of game.
+
+Update goals each turn:
+- Remove goals that are completed, impossible, or no longer relevant.
+- Add new goals based on concrete outcomes in the latest MUD output.
+- Keep long-term goals simple (level up, survive, earn gold, improve gear, explore useful hunting routes).
+- Immediate goals must be specific next actions, not vague intentions.
+
+Important style constraints:
+- Prefer combat/grind progression over complex quest assumptions.
+- Do NOT add goals about talking to NPCs (e.g. say/tell/ask/chat) unless the output explicitly proves conversation is required.
+- Avoid speculative story goals that are not grounded in observed game output.
 
 ---
 Current goals (goals.md):
@@ -17,7 +28,13 @@ Actual MUD output since action:
 {{actual_output}}
 
 ---
-Output only the goals section. You must output the === GOALS.MD === header then the content so goals.md is updated every turn. Use the current goals (above) and update them based on the outcome. Format: ## Long-Term Goals / ## Immediate Goals with bullet lists. Suggest no more than 3 long-term goals; suggest no more than 4 immediate goals.
+Output only the goals section. You must output the === GOALS.MD === header then the content so goals.md is updated every turn. Use current goals and update them based on outcome.
+
+Format rules:
+- Use `## Long-Term Goals` and `## Immediate Goals` with bullet lists.
+- No more than 3 long-term goals and 4 immediate goals.
+- Each immediate goal must be specific and executable in 1-3 commands (e.g. "Go north to follow dragon", "Kill spotted leopard in current room", "Loot corpse then move east", "Drink canteen").
+- Do not include broad goals like "gather information" or "build relationships".
 
 === GOALS.MD ===
 ## Long-Term Goals

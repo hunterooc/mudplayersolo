@@ -43,6 +43,13 @@ Key config options:
 - **Interrupt**: Press **Ctrl+C** to stop gracefully.
 - **Manual override**: While running in a TTY, type a command and press **Enter** to inject it as the next action instead of DH's choice.
 
+## Prompt Reset / Rollback
+
+- Baseline prompt copies live in `prompts/baselines/` (`dh.txt`, `engineer.txt`, `editor.txt`).
+- Reset DH prompt only: `python scripts/reset_prompts.py`
+- Reset all editable prompts: `python scripts/reset_prompts.py --all`
+- Preview without writing: `python scripts/reset_prompts.py --dry-run`
+
 ## Logs
 
 - `data/logs/orchestrator.log` — high-level orchestrator events
@@ -65,6 +72,7 @@ All logs are reset at the start of each run.
 - `src/memory/` — memory file read/write
 - `src/orchestrator.py` — main loop including auto-prompt-engineering
 - `prompts/` — prompt templates (mh_*.txt, dh.txt, dh_goals.txt, critic.txt, engineer.txt, editor.txt)
+- `prompts/baselines/` — immutable prompt rollback copies used by `scripts/reset_prompts.py`
 - `data/` — memory files (.md), logs under `data/logs/`
 
 ## Memory Files

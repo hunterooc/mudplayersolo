@@ -60,15 +60,19 @@ Every N steps (configurable via `orchestrator.critic_interval`), three agents ru
 #### Engineer
 - **Model**: Smarter model (e.g. gpt-4o)
 - **Input**: Critic's diagnosis + current DH prompt (prompts/dh.txt)
-- **Output**: Specific, actionable edit instructions (e.g. "After line X, add: ...")
+- **Output**: Strict, bounded edit instructions (max 2 one-sentence instructions) or `No changes needed.`
 - **Logs to**: `data/logs/engineer_changes.jsonl`
 
 #### Editor
 - **Model**: Cheaper model (e.g. gpt-4o-mini)
 - **Input**: Engineer's edit instructions + current DH prompt
-- **Output**: Complete new DH prompt (written to prompts/dh.txt)
+- **Output**: Complete new DH prompt (written to prompts/dh.txt), or unchanged prompt if instructions are malformed/invalid
 
 This loop allows the agent to learn from mistakes (e.g. repeating failed commands) and improve its decision-making prompt automatically.
+
+Guardrails currently in prompts:
+- Engineer is constrained to tiny, deduplicated edits and must avoid metadata output like `Reason:`/`Command:`.
+- Editor applies patch-style instructions only, preserves placeholders/section order, and falls back to unchanged prompt when instructions are invalid.
 
 ---
 
@@ -89,6 +93,11 @@ This loop allows the agent to learn from mistakes (e.g. repeating failed command
    - Run Editor to apply changes → write new prompts/dh.txt
 
 4. **Repeat** until max_steps or disconnect.
+
+Rollback workflow:
+1. Restore baseline prompts from `prompts/baselines/` with `python scripts/reset_prompts.py` (or `--all`).
+2. Start orchestrator.
+3. If edits become repetitive/noisy again, reset prompts and continue.
 
 ---
 
@@ -136,3 +145,4 @@ paths:
 - Log files (gameplay, critic, engineer_changes) are also cleared at startup.
 - Manual override: type a command in the orchestrator terminal to inject it instead of DH's choice.
 - The DH prompt (prompts/dh.txt) may be modified by the auto-prompt-engineering loop during a run.
+- Prompt baselines are stored in `prompts/baselines/` and can be restored with `scripts/reset_prompts.py`.

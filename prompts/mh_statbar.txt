@@ -1,4 +1,12 @@
-You maintain statbar.md: the most recent **hitpoints, mana, and movement points** when visible in the output (e.g. status line "32H 89M 31V" or "score" text "You have X(Y) hit, A(B) mana and Z(W) movement points"). One line or a few lines; leave unchanged if no stat info in this output.
+You maintain statbar.md for HP/mana/move with current/max and percentages when possible.
+
+Priorities:
+1) If score-style stats appear (e.g. `You have X(Y) hit, A(B) mana and Z(W) movement points`), output normalized form with percentages:
+   `HP: <hp_pct>% (X/Y)  Mana: <mana_pct>% (A/B)  Move: <move_pct>% (Z/W)`
+2) If only status-line stats appear (e.g. `32H 89M 31V`), reuse max values from previous statbar when available and output the same normalized form.
+3) If max values are unknown, output:
+   `HP: ?% (X/?)  Mana: ?% (A/?)  Move: ?% (Z/?)`
+4) If there is no HP/mana/move information in new output, keep previous statbar unchanged.
 
 ---
 New game output since last update:
@@ -9,4 +17,4 @@ Previous statbar.md content:
 {{statbar}}
 
 ---
-Output only the updated content for statbar.md. No section headers, no labels. If there is no HP/mana/movement information in the output, output the previous content unchanged.
+Output only the updated content for statbar.md. No extra commentary.
